@@ -1,2 +1,5 @@
-== Sudoku
-=== A Sudoku solver written in Ruby
+Sudoku
+=====
+
+A Sudoku solver written in Ruby
+----------------------------
