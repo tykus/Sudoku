@@ -1,207 +1,319 @@
 #!/usr/bin/env ruby
 
-# The Sudoku grid is comprised of an array of cell objects. Each cell has an index (from which it's position
-# can be determined), a current_value and if necessary an array of possible values which will reduce as the 
-# puzzle is being solved, until only a current_value remains for each cell.
-
-# The sudoku object represents the 9x9 grid of cell objects
-# ---------------------------------------------------------
-#   			
-#			    .  .  .  |  .  .  .  |  .  .  .
-#			             |           |            
-#			    .  0  .  |  .  1  .  |  .  2  .
-#			             |           |            
-#			    .  .  .  |  .  .  .  |  .  .  .
-#			   ----------+-----------+----------- 
-#			    .  .  .  |  .  .  .  |  .  .  .
-#			             |           |            
-#			    .  3  .  |  .  4  .  |  .  5  .
-#			             |           |            
-#			    .  .  .  |  .  .  .  |  .  .  .
-#			   ----------+-----------+----------- 
-#			    .  .  .  |  .  .  .  |  .  .  .
-#			             |           |            
-#			    .  6  .  |  .  7  .  |  .  8  .
-#			             |           |            
-#			    .  .  .  |  .  .  .  |  .  .  .
-
-
 
 class Sudoku
-
-	attr_accessor :grid
 	
-	# Create a grid object having size*size cell objects
-	def initialize
-		@grid = Array.new(81) { |i| Cell.new(i) }
+	attr_accessor :board, :test
+		
+	# initialize
+	# ==========
+	# Creates a new Sudoku object
+	def initialize(size)
+		@size = size
+		@sqrt_size = Math.sqrt(@size).to_i
+		@board = Array.new(@size*@size) { |i| Cell.new(i, @size) }
+		self.seeding  ## DELETE
+		self.to_s	
+		@test = 0
+		
 	end
 	
-	
-	# Accepts a hash of grid indices and values and seeds the grid with values
-	def seed(seeds)
-			
-		# Assigns the val to the grid[key]
+	#######################################################################################
+	# DELETE# DELETE# DELETE
+	def seeding					
+		seeds = {3=>8, 4=>2, 5=>3, 6=>1, 9=>5, 10=>7, 15=>9, 23=>9, 24=>4, 31=>1, 35=>5,
+				36=>2, 37=>4, 43=>8, 44=>9, 45=>9, 49=>6, 56=>2, 57=>7, 65=>5, 70=>2, 71=>1,
+				74=>9, 75=>2, 76=>3, 77=>5}
+		
+		
+		#seeds = {1=>2, 3=>3, 10=>2, 13=>4}
 		seeds.each do |key, val|
-			@grid[key].define_value = val
+			seed(key,val)
 		end
+	end							
+	# DELETE# DELETE# DELETE
+	########################################################################################
+	
+	 
+	# seed(hash)
+	# ==========
+	# Takes a hash of key-value pairs representing a board index and value and sets the value of the
+	# corresponding cells on the board
+	
+	def seed(k,v)
+		@board[k].set_value = v
+	end
 
+
+	# make_ready
+	# ==================
+	# Removes the candidate values from each cells neighbours based on the value in each cell object
+		
+	def make_ready
+		
+		# Adjust the candidate values for every cell based on the value of neighbouring cells.
+		@board.each do |cell|
+			unless cell.value == nil
+				resolve_candidates(cell.index, cell.value)
+			end
+		end
+		
 	end
 	
 	
-	# Output the formatted grid
+	# resolve_candidates
+	# ==================
+	# Removes the candidate values from each cells neighbours based on the value in each cell object	
+	
+	def resolve_candidates(index, value)
+		@board[index].neighbours.each do |i|
+			@board[i].delete_candidate(value)
+		end		
+	end
+
+	
+	# solved?
+	# =======
+	# Checks if the board is finished, all cells have a value
+	
+	def solved?
+	
+		 return @board.all? { |cell| cell.value }
+	
+	end
+	
+	
+
+	# solve
+	# =====
+	# Uses recursive backtracking to solve the puzzle
+	
+	def solve(index)
+
+		# Try the candidate value, if it is a possible value for the cell, solve the next cell
+		# otherwise, try the next candidate.
+		
+		# If we reach the base case, i.e. the end of the puzzle, return true 	
+		#unless solved?
+		unless index.nil?
+			cell = @board[index]
+		else
+			return true
+		end
+		
+		cell.candidates.each do |candidate|
+			cell.try_value = candidate
+			@message = "Trying #{candidate} (#{cell.candidates.index(candidate) + 1} of #{cell.candidates.length}) in Cell no: #{index}"
+			self.to_s
+			if possible?(index, candidate) and solve(next_cell(index))	
+				@message = "Moving on to next cell"
+				self.to_s
+			end
+			
+		end
+		cell.try_value = nil
+		return false		
+	end
+	
+	
+	# next_cell
+	# =========
+	# Returns the index of the next cell to evaluate
+	
+	def next_cell(index)
+	
+		i = index+1
+		while i < @board.length
+			if board[i].candidates.length > 0
+				return i
+			end
+			i = i + 1
+		end	
+		
+	end
+	
+
+	# possible?
+	# =========
+	# Takes a cell index and value and checks it against the cell's neighbours, returning false if
+	# the value is present in one of the neighbours.		
+		
+	def possible?(index, val)
+		@board[index].neighbours.each do |i|
+			if @board[i].value == val
+				return false
+			end
+		end		
+		return true
+	end
+
+
+	# to_s
+	# ====
+	# Outputs the board state
+	
 	def to_s
-	    # Define some presentation elements
-		border = " ----------+-----------+----------- "
-	    spacer = "           |           |            "
-	    inner_border = "  |"
+	    sleep 0.01 # slows down execution
+	    print "\e[H\e[2J"; # Clear the terminal
+	    puts # blank line
 	    
-	    # Loop thru each element in the grid and return the current value of the cell object
-		@grid.each_index do |i|
-			# Layout and presentation of the grid			
-			if i%27 == 0 and i != 0 		# border after every third row, except first
+	    
+	    # Define some presentation elements
+	    border = "---" * (@size + @sqrt_size - 1)
+	    inner_border = " | "	
+	
+	
+		@board.each do |cell|
+			
+			if cell.index%(@sqrt_size**3) == 0 and cell.index != 0 # border after every 3rd row not 1st
 				puts
 				puts border
-			elsif i%9 == 0 and i != 0 		# otherwise, spacer between every row, except first 
+			elsif cell.index%@size == 0 and cell.index != 0 # new line 
 				puts
-				puts spacer
-			elsif i%3 == 0 and i%9 != 0 	# vertical border every third column, except first 
-				print inner_border
+			elsif cell.index%@sqrt_size == 0 and cell.index%@size != 0 # vertical border every 3rd column, except first 
+				print inner_border	
 			end
 			
-			# Output the current_value of the cell object (from the Cell object's to_s method)
-			if @grid[i].to_s.nil?
-				print "  ."
+			
+		
+			if cell.value
+				print " #{cell.value} "
 			else
-				print "  #{@grid[i].to_s}"
+				print " . "
 			end
-			
-		end
-		
-		# New line after grid is printed
-		puts
-		puts		
-		
+		end	
+		puts # blank line
+		puts @message
 	end
-
+	
 end
 
 
-# Cell Class
-# Every element on the Sudoku object's grid contains a Cell object which 
+
+# ==================================================================================================
+
 
 class Cell
+	attr_accessor :index, :value, :candidates, :neighbours	
 	
-	# Create a cell object
-	def initialize(index)
-			
+	def initialize(index, size)
 		@index = index
-		
-		# Set the initial value of the cell
-		@current_value = nil 
-		
-		# Create an array of possible values
-		@possible_values = Array.new(9) { |i| i+1 }
-
-	end
-	
-	# Define the current value in a cell and remove the possible values array
-	def define_value=(val)
-		@current_value = val
-		@possible_values.pop(self.remaining_values)
+		@size = size # the size of the board
+		@sqrt_size = Math.sqrt(@size).to_i
+		@value = nil
+		@candidates = Array.new(@size) { |i| i+1 }
+		@neighbours = []
+		define_neighbours
 	end
 
 	
+	# set_value
+	# =========
+	# Takes a value which is set as the value for the Cell object, and removes all remaining candidates
+	
+	def set_value=(val)
+		@value = val
+		@candidates.pop(@candidates.length)
+	end
 
-	def possible_values
-		return @possible_values
-	end
 	
-	def remaining_values
-		return @possible_values.length	
-	end
+	# try_value
+	# =========
+	# Takes a value which is set as the value for the Cell object; candidates are not changed
 	
-	
-	# Location of Cell
-	# the row number of any cell is determined by integer division of index, e.g. 43/9 = 4 ... row 4
-	def row_number
-		return @index/9
-	end 
-	
-	# the column number of any cell is determined by modulo operation of index, e.g. 43%9 = 7 ... col 7
-	def col_number
-		return @index%9 
+	def try_value=(val)
+		@value = val
 	end	
 	
-	def square_number
-		# The number of the square (3x3) of cells is determined from the individual cells
-		# Cell 43 is in row 4 (43/9), column 7 (43%9) and is therefore in square_row 1 (4/3)'
-		# square_column 2 (7/3).  The square number is 5 (row1+1)*(col2+1)-1
-		
-		row = self.row_number/3
-		col = self.col_number/3
-		@square_number = (col + 1) * (row + 1) - 1
-		return @square_number
-	end
-	
-	
-	
-	
-	# Outputs the [row,col] address of the cell along with its value
-	def to_s
-		#puts "[#{row_number}, #{col_number}]: #{@current_value}"
-		return @current_value
-	end
-	
-	# Compare 
-	def ==(other)
-    	return self.remaining_values == other.remaining_values
-   	end
-	
 
+	# delete_candidate
+	# ================
+	# Takes a value which is deleted from the array of candidates for the Cell object
+		
+	def delete_candidate(val)
+		@candidates.delete(val)
+	end	
+	
+	
+	# position
+	# ========
+	# Establishes where a Cell object is in relation to the board
+	
+	def position
+		row = @index/@size
+		col = @index%@size
+		return {"row"=>row, "col"=>col}
+	end
+	
+	
+	# define_neighbours
+	# =================
+	# Adds the indices of each cell which is on the same row, column or block as this cell instance.
+	
+	def define_neighbours
+		#ROW
+		for i in 0..@size-1
+			index = (self.position['row'] * @size) + i
+			add_neighbour(index)
+		end
+		
+		# COLUMN
+		for i in 0..@size-1
+			index = self.position['col'] + (i * @size)
+			add_neighbour(index)
+		end
+		
+		#BLOCK
+		sq_row = self.position['row']/@sqrt_size
+		sq_col = self.position['col']/@sqrt_size
+		starting_index = (sq_row * @size + sq_col) * @sqrt_size
+			
+		# Generate differences between top-left index of block and other cells
+		diffs = []
+		for i in 0..@sqrt_size-1
+			for j in 0..@sqrt_size-1
+				diffs << j + i * @size
+			end
+		end
+		
+		# Generate indices of cells in this square and add them to the neighbours array
+		diffs.each do |diff|
+			index = starting_index + diff
+			add_neighbour(index)
+		end
+	end	
+
+
+	# add_neighbour(index)
+	# ====================
+	# Takes an index and adds it to the Cell object's neighbours array, if it is not already there 
+	# or is the index of the Celll object itself
+		
+	def add_neighbour(index)
+		@neighbours << index unless @neighbours.include?(index) or @index == index
+	end
+	
+	
+	# to_s
+	# ====
+	# Returns the value of the Cell object
+	def to_s
+		return @value
+	end
+	
 end
+
+
+
+
+# =================================================================================================
 
 if __FILE__ == $0
-	
-	# Create a grid of cell objects, with current_value nil
-	#grid = Array.new(81) { |i| Cell.new(i) }
-	my_puzzle = Sudoku.new
-	
-	
-	# Define the original state of the puzzle 
-	# seed is a hash of grid[index]=>value pairs
-	seeds = {2=>2, 
-			5=>5,
-			7=>7,
-			8=>9,
-			9=>1,
-			11=>5,
-			14=>3,
-			24=>6,
-			28=>1,
-			30=>4,
-			33=>9,
-			37=>9,
-			43=>8,
-			47=>4,
-			50=>9,
-			52=>4,
-			56=>9,
-			66=>1,
-			69=>3,
-			71=>6,
-			72=>6,
-			73=>8,
-			75=>3,
-			78=>4}
+	# Create a new puzzle
+	puzzle = Sudoku.new(9)
 
-		
-	# Assign seed values to puzzle
-	my_puzzle.seed(seeds)
-
+	puzzle.make_ready
 	
-		
-	# Output puzzle 
-	my_puzzle.to_s
+	puzzle.solve(0)
 end
-
 
