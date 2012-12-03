@@ -380,8 +380,7 @@ if __FILE__ == $0
 	puzzle = Sudoku.new(puzzle_size)
 	
 	# Seed the puzzle with original values
-	cell_values.each_in
-	dex { |i| puzzle.seed(i, cell_values[i].to_i) if cell_values[i] != "." }
+	cell_values.each_index { |i| puzzle.seed(i, cell_values[i].to_i) if cell_values[i] != "." }
 	
 	# Tidy up the candidate values for the remaining cells w.r.t. original puzzle state and
 	# Create an array of cells in order to be solved (ordered by increasing number of candidates)
