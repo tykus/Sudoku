@@ -1,160 +1,122 @@
 #!/usr/bin/env ruby
 
+# sudoku.rb
+# =========
+# Solves a sudoku puzzle using recursive backtracking
+#
+# Usage: 
+#		$sudoku.rb 'path/to/puzzle.txt'
+# where puzzle.txt is a textfile with original values (copy and paste the grid
+# below into a blank file to begin a new puzzle). It expects '.' as a placeholder
+# for missing digits. The size of the Sudoku puzzle will be determined from the 
+# text file, but it is not error checked.
+#
+#  .  .  .  |  .  .  .  |  .  .  .
+#  .  .  .  |  .  .  .  |  .  .  .
+#  .  .  .  |  .  .  .  |  .  .  .
+# ---------------------------------
+#  .  .  .  |  .  .  .  |  .  .  .
+#  .  .  .  |  .  .  .  |  .  .  .
+#  .  .  .  |  .  .  .  |  .  .  .
+# ---------------------------------
+#  .  .  .  |  .  .  .  |  .  .  .
+#  .  .  .  |  .  .  .  |  .  .  .
+#  .  .  .  |  .  .  .  |  .  .  .
+
+# Usage in Interactive Ruby (irb):
+# 1. Create a new Sudoku puzzle object; size is the length of  
+#		$ puzzle = Sudoku.new(size)
+# 2. Populate the grid with initial values
+#		$ puzzle.seed(index, value) 
+# 3. Remove candidates and define order of cells to be solved to speed up 
+# 	 recursive backtracking
+#		$ puzzle.make_ready
+# 4. Solve the puzzle
+#		$ puzzle.solve
 
 class Sudoku
-	
-	attr_accessor :board, :test
+
+	attr_accessor :board, :cells
 		
 	# initialize
 	# ==========
 	# Creates a new Sudoku object
 	def initialize(size)
 		@size = size
-		@sqrt_size = Math.sqrt(@size).to_i
+		@sqrt_size = Math.sqrt(@size).to_i # needs integer division
 		@board = Array.new(@size*@size) { |i| Cell.new(i, @size) }
-		self.seeding  ## DELETE
-		self.to_s	
-		@test = 0
-		
 	end
 	
-	#######################################################################################
-	# DELETE# DELETE# DELETE
-	def seeding					
-		seeds = {3=>8, 4=>2, 5=>3, 6=>1, 9=>5, 10=>7, 15=>9, 23=>9, 24=>4, 31=>1, 35=>5,
-				36=>2, 37=>4, 43=>8, 44=>9, 45=>9, 49=>6, 56=>2, 57=>7, 65=>5, 70=>2, 71=>1,
-				74=>9, 75=>2, 76=>3, 77=>5}
-		
-		
-		#seeds = {1=>2, 3=>3, 10=>2, 13=>4}
-		seeds.each do |key, val|
-			seed(key,val)
-		end
-	end							
-	# DELETE# DELETE# DELETE
-	########################################################################################
 	
-	 
-	# seed(hash)
-	# ==========
-	# Takes a hash of key-value pairs representing a board index and value and sets the value of the
-	# corresponding cells on the board
+	# seed(index,value)
+	# =================
+	# Takes a board index and cell value and sets the value of the
+	# corresponding cell on the board
 	
-	def seed(k,v)
-		@board[k].set_value = v
+	def seed(idx,val)
+		@board[idx].set_value = val
 	end
 
 
 	# make_ready
-	# ==================
+	# ==========
 	# Removes the candidate values from each cells neighbours based on the value in each cell object
-		
+	# Also examines each cell and produces an array of indices in order of ascenting candidate numbers	
+
 	def make_ready
+				
+		# Create an array which will determine the order of attack for the puzzle
+		@cells = []
+		@board.each { |cell| @cells << cell if cell.candidates.length > 0 }
 		
-		# Adjust the candidate values for every cell based on the value of neighbouring cells.
-		@board.each do |cell|
-			unless cell.value == nil
-				resolve_candidates(cell.index, cell.value)
-			end
+		# The puzzle can be made smaller by assigning any cells which have only one candidate value
+		# Several passes might be necessary to determine all of these cells because every time a 
+		# cell value is assigned, this affects the other cells' candidates
+		while true	
+			
+			# Assess the candidates for each of the cells
+			@board.each { |cell| resolve_candidates(cell) unless cell.value.nil? }			
+			
+			# Any cells with only one candidate value can be set immediately
+			@cells.each { |cell| cell.set_value = cell.candidates.first if cell.candidates.length == 1 }
+			
+			# Remove any cells where the candidates have been used
+			@cells.delete_if { |cell| cell.candidates.length == 0 }
+
+			# Sort cells in order of increasing number of candidates
+			@cells.sort! { |a,b| a.candidates.length <=> b.candidates.length }
+			
+			# Get out of the loop if the first cell has more than one candidate, otherwise go again
+			break if @cells[0].candidates.length > 1
 		end
 		
 	end
-	
-	
-	# resolve_candidates
-	# ==================
-	# Removes the candidate values from each cells neighbours based on the value in each cell object	
-	
-	def resolve_candidates(index, value)
-		@board[index].neighbours.each do |i|
-			@board[i].delete_candidate(value)
-		end		
-	end
 
 	
-	# solved?
-	# =======
-	# Checks if the board is finished, all cells have a value
 	
-	def solved?
-	
-		 return @board.all? { |cell| cell.value }
-	
-	end
-	
-	
-
 	# solve
 	# =====
-	# Uses recursive backtracking to solve the puzzle
+	# Begins solving the remainder of the puzzle using recursive backtracking and 
 	
-	def solve(index)
-
-		# Try the candidate value, if it is a possible value for the cell, solve the next cell
-		# otherwise, try the next candidate.
-		
-		# If we reach the base case, i.e. the end of the puzzle, return true 	
-		#unless solved?
-		unless index.nil?
-			cell = @board[index]
+	def solve
+		if solver?(@cells[0])
+			@message = "Puzzle solved!"
 		else
-			return true
+			@message = "No solution found..."
 		end
-		
-		cell.candidates.each do |candidate|
-			cell.try_value = candidate
-			@message = "Trying #{candidate} (#{cell.candidates.index(candidate) + 1} of #{cell.candidates.length}) in Cell no: #{index}"
-			self.to_s
-			if possible?(index, candidate) and solve(next_cell(index))	
-				@message = "Moving on to next cell"
-				self.to_s
-			end
-			
-		end
-		cell.try_value = nil
-		return false		
+		self.to_s
 	end
 	
 	
-	# next_cell
-	# =========
-	# Returns the index of the next cell to evaluate
-	
-	def next_cell(index)
-	
-		i = index+1
-		while i < @board.length
-			if board[i].candidates.length > 0
-				return i
-			end
-			i = i + 1
-		end	
-		
-	end
-	
-
-	# possible?
-	# =========
-	# Takes a cell index and value and checks it against the cell's neighbours, returning false if
-	# the value is present in one of the neighbours.		
-		
-	def possible?(index, val)
-		@board[index].neighbours.each do |i|
-			if @board[i].value == val
-				return false
-			end
-		end		
-		return true
-	end
-
-
 	# to_s
 	# ====
 	# Outputs the board state
 	
 	def to_s
+	    
 	    sleep 0.01 # slows down execution
-	    print "\e[H\e[2J"; # Clear the terminal
+	    print "\e[H\e[2J"; # Clear the terminal(UNIX)
+		system('cls') # Clear the terminal(Windows)
 	    puts # blank line
 	    
 	    
@@ -174,17 +136,114 @@ class Sudoku
 				print inner_border	
 			end
 			
-			
-		
+			# Finally, add the cell value or a placeholder
 			if cell.value
 				print " #{cell.value} "
 			else
 				print " . "
 			end
+			
 		end	
-		puts # blank line
+		
+		puts # new line
 		puts @message
+
 	end
+
+
+	
+	private
+		
+	
+	# resolve_candidates
+	# ==================
+	# Removes the candidate values from each cells neighbours based on the value in each cell object	
+	
+	def resolve_candidates(cell)
+		puts "#{cell.index}"
+		cell.neighbours.each do |i|
+		
+			@board[i].delete_candidate(cell.value)
+			
+		end		
+		
+	end
+	
+	
+	# solver(cell)
+	# ============
+	# Solves the puzzle using recursive backtracking
+	
+	def solver?(cell)
+	
+		# Go thru each possible candidate value, evaluating if the selected candidate is
+		# possible for the cell and if the resulting branch solves
+		cell.candidates.each do |candidate|
+			cell.try_value = candidate
+			@message = "Testing cell ##{cell.index} with #{candidate}\n#{cell.candidates} available"
+			self.to_s
+			
+			# If the current cell is last in the @cells array, check only the validity of the candidate.
+			if cell != @cells.last 
+				if candidate_is_valid?(cell) and solver?(next_cell(cell))
+				
+					# This cell has been solved - set value and return true back up the state space
+					#cell.set_value = candidate
+					return true
+					
+				else	
+					
+					# The cell has not been solved, restore it to nil (it must not affect other decisions)
+					cell.try_value = nil
+					
+				end
+			else
+				if candidate_is_valid?(cell)
+					# This is the base case where there are no other cells to check, so we can send true
+					# back up the recursion levels 
+					return true
+				else
+					return false
+				end
+			end
+			
+		end
+		
+		# If all candidates have been evaluated without success, this branch has failed; need to backtrack
+		return false
+			
+	end
+	
+	
+	# next_cell
+	# =========
+	# Returns the next cell from the @cells array
+	
+	def next_cell(cell)
+
+		# Find the index where the current cell occurs in the @cells array
+		idx = @cells.index(cell)
+	 
+	 	# Return the cell at the next position
+	 	return @cells[idx+1]
+	 
+	end
+	
+	
+	# candidate_is_valid?(cell) 
+	# =========================
+	# Takes a cell and checks it against it's neighbours, returning false if the value is already 
+	# present in one of the neighbours.		
+		 
+	def candidate_is_valid?(cell)
+		cell.neighbours.each do |i|
+			if @board[i].value == cell.value
+				return false
+			end
+		end		
+		return true
+	end
+
 	
 end
 
@@ -205,17 +264,25 @@ class Cell
 		@neighbours = []
 		define_neighbours
 	end
-
+		
+		
+	# to_s
+	# ====
+	# Returns the value of the Cell object
 	
-	# set_value
+	def to_s
+		return @value
+	end
+	
+	
+		# set_value
 	# =========
 	# Takes a value which is set as the value for the Cell object, and removes all remaining candidates
 	
 	def set_value=(val)
 		@value = val
 		@candidates.pop(@candidates.length)
-	end
-
+	end 
 	
 	# try_value
 	# =========
@@ -235,6 +302,8 @@ class Cell
 	end	
 	
 	
+	private 
+	
 	# position
 	# ========
 	# Establishes where a Cell object is in relation to the board
@@ -245,7 +314,6 @@ class Cell
 		return {"row"=>row, "col"=>col}
 	end
 	
-	
 	# define_neighbours
 	# =================
 	# Adds the indices of each cell which is on the same row, column or block as this cell instance.
@@ -253,19 +321,19 @@ class Cell
 	def define_neighbours
 		#ROW
 		for i in 0..@size-1
-			index = (self.position['row'] * @size) + i
+			index = (position['row'] * @size) + i
 			add_neighbour(index)
 		end
 		
 		# COLUMN
 		for i in 0..@size-1
-			index = self.position['col'] + (i * @size)
+			index = position['col'] + (i * @size)
 			add_neighbour(index)
 		end
 		
 		#BLOCK
-		sq_row = self.position['row']/@sqrt_size
-		sq_col = self.position['col']/@sqrt_size
+		sq_row = position['row']/@sqrt_size
+		sq_col = position['col']/@sqrt_size
 		starting_index = (sq_row * @size + sq_col) * @sqrt_size
 			
 		# Generate differences between top-left index of block and other cells
@@ -287,33 +355,39 @@ class Cell
 	# add_neighbour(index)
 	# ====================
 	# Takes an index and adds it to the Cell object's neighbours array, if it is not already there 
-	# or is the index of the Celll object itself
+	# or is the index of the Cell object itself
 		
 	def add_neighbour(index)
 		@neighbours << index unless @neighbours.include?(index) or @index == index
 	end
 	
-	
-	# to_s
-	# ====
-	# Returns the value of the Cell object
-	def to_s
-		return @value
-	end
-	
 end
 
-
-
-
-# =================================================================================================
+#===================================================================================================
 
 if __FILE__ == $0
-	# Create a new puzzle
-	puzzle = Sudoku.new(9)
-
-	puzzle.make_ready
 	
-	puzzle.solve(0)
-end
+	# Read in the puzzle from a file
+	input = ARGF.read()
+	
+	# Separate out the useless characters from input
+	cell_values = input.split.delete_if { |char| char =~ /[\#\s\|\-]/ }
+	
+	# Determine the size of the puzzle
+	puzzle_size = Math.sqrt(cell_values.length).to_i
+	
+	# Create a new Sudoku object
+	puzzle = Sudoku.new(puzzle_size)
+	
+	# Seed the puzzle with original values
+	cell_values.each_in
+	dex { |i| puzzle.seed(i, cell_values[i].to_i) if cell_values[i] != "." }
+	
+	# Tidy up the candidate values for the remaining cells w.r.t. original puzzle state and
+	# Create an array of cells in order to be solved (ordered by increasing number of candidates)
+	puzzle.make_ready
 
+	# Solve the puzzle
+	puzzle.solve
+	
+end
